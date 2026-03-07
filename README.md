@@ -64,7 +64,7 @@ List files and folders in a Google Drive directory.
 **Parameters:**
 - `path` (string, default: `"/"`): Directory path to list
 
-**Returns:** Array of entries with `name`, `path`, `type` ("file" or "folder"), `size`, `modified`, `etag`.
+**Returns:** Array of entries with `name`, `path`, `type` ("file" or "folder"), `size`, `modified`.
 
 ### read_file
 

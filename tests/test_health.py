@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient, ASGITransport
-from google_drive_mcp_server.server import mcp, create_app
+from google_drive_mcp_server.server import create_app
 
 
 @pytest.mark.asyncio

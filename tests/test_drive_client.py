@@ -309,3 +309,35 @@ class TestPathResolution:
             assert exc_info.value.error == "not_found"
         finally:
             await client.close()
+
+    @respx.mock
+    async def test_cache_no_collision_between_drives(self):
+        """Cache keys include drive prefix so My Drive and Shared drives don't collide."""
+        call_count = [0]
+        def side_effect(request):
+            call_count[0] += 1
+            url_str = str(request.url)
+            # Shared drive listing
+            if "drives" in url_str and "files" not in url_str:
+                return httpx.Response(200, json={
+                    "drives": [{"id": "drive-x", "name": "TeamX"}]
+                })
+            if call_count[0] <= 2:
+                # My Drive /Documents resolves to my-docs-id
+                return httpx.Response(200, json={
+                    "files": [{"id": "my-docs-id", "name": "Documents", "modifiedTime": "2024-01-01T00:00:00Z", "mimeType": FOLDER_MIME_TYPE}]
+                })
+            # Shared drive /Documents resolves to shared-docs-id
+            return httpx.Response(200, json={
+                "files": [{"id": "shared-docs-id", "name": "Documents", "modifiedTime": "2024-01-01T00:00:00Z", "mimeType": FOLDER_MIME_TYPE}]
+            })
+        respx.get(url__startswith="https://www.googleapis.com").mock(side_effect=side_effect)
+        client = DriveClient(token="test-token")
+        try:
+            my_drive_id = await client._resolve_path("/My Drive/Documents")
+            shared_id = await client._resolve_path("/Shared drives/TeamX/Documents")
+            assert my_drive_id == "my-docs-id"
+            assert shared_id == "shared-docs-id"
+            assert my_drive_id != shared_id
+        finally:
+            await client.close()

@@ -70,7 +70,7 @@ docker build -t google-drive-mcp-server .
 
 ## Coding Conventions
 
-- Python 3.11+
+- Python 3.12+
 - Type hints on all public functions
 - Async/await throughout
 - Tests use `@pytest.mark.asyncio` and `@respx.mock` for HTTP mocking

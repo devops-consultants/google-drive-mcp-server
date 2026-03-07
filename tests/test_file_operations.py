@@ -45,16 +45,12 @@ class TestListFiles:
         # Resolve root returns "root"
         # Then list children
         respx.get(url__startswith=f"{DRIVE_API_BASE}/files").mock(
-            side_effect=lambda request: httpx.Response(200, json={
+            return_value=httpx.Response(200, json={
                 "files": [
                     {"id": "f1", "name": "Documents", "mimeType": FOLDER_MIME_TYPE, "modifiedTime": "2024-01-01T00:00:00Z"},
                     {"id": "f2", "name": "report.md", "mimeType": "text/markdown", "size": "1024", "modifiedTime": "2024-01-02T00:00:00Z"},
                 ]
-            }) if "q=" in str(request.url) or "q" in dict(request.url.params) else httpx.Response(200, json={"id": "f1"})
-        )
-        # Mock etag requests
-        respx.get(url__regex=rf"{DRIVE_API_BASE}/files/f[12]$").mock(
-            return_value=httpx.Response(200, json={"id": "x"}, headers={"etag": "\"etag-1\""})
+            })
         )
         client = DriveClient(token="test-token")
         try:
@@ -448,6 +444,35 @@ class TestCreateFolder:
         try:
             result = await client.create_folder("/Documents/Reports/2024")
             assert result == {"path": "/Documents/Reports/2024"}
+        finally:
+            await client.close()
+
+    @respx.mock
+    async def test_create_folder_shared_drive(self):
+        """create_folder handles /Shared drives/TeamX/... paths."""
+        call_count = [0]
+        def get_side_effect(request):
+            call_count[0] += 1
+            url_str = str(request.url)
+            if call_count[0] == 1:
+                # Initial _resolve_path for full path fails (folder doesn't exist)
+                return httpx.Response(200, json={"files": []})
+            if "drives" in url_str and "files" not in url_str:
+                # _resolve_shared_drive
+                return httpx.Response(200, json={
+                    "drives": [{"id": "drive-1", "name": "TeamX"}]
+                })
+            # Subsequent resolve calls for intermediate folders fail
+            return httpx.Response(200, json={"files": []})
+
+        respx.get(url__startswith="https://www.googleapis.com").mock(side_effect=get_side_effect)
+        respx.post(f"{DRIVE_API_BASE}/files").mock(
+            return_value=httpx.Response(201, json={"id": "new-folder-1", "name": "Reports"})
+        )
+        client = DriveClient(token="test-token")
+        try:
+            result = await client.create_folder("/Shared drives/TeamX/Reports")
+            assert result == {"path": "/Shared drives/TeamX/Reports"}
         finally:
             await client.close()
 

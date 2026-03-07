@@ -197,7 +197,10 @@ class DriveClient:
                 follow_redirects=follow_redirects,
             )
             if response.status_code == 429 and attempt < max_retries:
-                retry_after = int(response.headers.get("Retry-After", str(2 ** attempt)))
+                try:
+                    retry_after = int(response.headers.get("Retry-After", str(2 ** attempt)))
+                except (ValueError, TypeError):
+                    retry_after = 2 ** attempt
                 logger.warning(
                     f"Rate limited (429), retrying after {retry_after}s (attempt {attempt + 1})"
                 )
@@ -240,6 +243,7 @@ class DriveClient:
                 self._cache.set(path, "root")
                 return "root"
             current_id = "root"
+            path_prefix = "/My Drive"
         # Handle /Shared drives/TeamName/...
         elif parts[0].lower() == "shared drives":
             if len(parts) < 2:
@@ -253,11 +257,13 @@ class DriveClient:
             if not parts:
                 self._cache.set(path, current_id)
                 return current_id
+            path_prefix = f"/Shared drives/{drive_name}"
         else:
             current_id = "root"
+            path_prefix = ""
 
         # Walk the folder tree
-        accumulated_path = ""
+        accumulated_path = path_prefix
         for i, part in enumerate(parts):
             accumulated_path += "/" + part
             cached_id = self._cache.get(accumulated_path)
@@ -294,31 +300,45 @@ class DriveClient:
 
         Case-insensitive. Returns most recently modified file if duplicates exist.
         """
-        # Use files.list with parent filter and name filter
-        q = f"'{parent_id}' in parents and trashed = false"
+        escaped_name = name.replace("\\", "\\\\").replace("'", "\\'")
+        q = (
+            f"'{parent_id}' in parents and "
+            f"name = '{escaped_name}' and "
+            "trashed = false"
+        )
         url = f"{DRIVE_API_BASE}/files"
-        params = {
-            "q": q,
-            "fields": "files(id,name,modifiedTime,mimeType)",
-            "pageSize": "1000",
-            "orderBy": "modifiedTime desc",
-        }
-
-        # Include shared drive support
-        if parent_id != "root":
-            params["includeItemsFromAllDrives"] = "true"
-            params["supportsAllDrives"] = "true"
-
-        response = await self._request("GET", url, params=params)
-        if response.status_code != 200:
-            raise _map_error(response, f"resolve path '{full_path}'")
-
-        files = response.json().get("files", [])
-        # Case-insensitive name match, return most recently modified
         name_lower = name.lower()
-        for f in files:
-            if f["name"].lower() == name_lower:
-                return f["id"]
+        page_token: str | None = None
+
+        while True:
+            params: dict[str, str] = {
+                "q": q,
+                "fields": "nextPageToken, files(id,name,modifiedTime,mimeType)",
+                "pageSize": "1000",
+                "orderBy": "modifiedTime desc",
+            }
+
+            if parent_id != "root":
+                params["includeItemsFromAllDrives"] = "true"
+                params["supportsAllDrives"] = "true"
+
+            if page_token:
+                params["pageToken"] = page_token
+
+            response = await self._request("GET", url, params=params)
+            if response.status_code != 200:
+                raise _map_error(response, f"resolve path '{full_path}'")
+
+            data = response.json()
+            files = data.get("files", [])
+
+            for f in files:
+                if f["name"].lower() == name_lower:
+                    return f["id"]
+
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
 
         raise DriveAPIError("not_found", f"Path not found: {full_path}")
 
@@ -330,53 +350,52 @@ class DriveClient:
 
         q = f"'{folder_id}' in parents and trashed = false"
         url = f"{DRIVE_API_BASE}/files"
-        params: dict[str, str] = {
-            "q": q,
-            "fields": "files(id,name,mimeType,size,modifiedTime,parents)",
-            "pageSize": "1000",
-            "orderBy": "name",
-        }
-        if folder_id != "root":
-            params["includeItemsFromAllDrives"] = "true"
-            params["supportsAllDrives"] = "true"
 
-        response = await self._request("GET", url, params=params)
-        if response.status_code != 200:
-            raise _map_error(response, f"list_files({path})")
-
-        data = response.json()
-        entries = []
         # Normalise the base path
         base_path = path.strip().rstrip("/")
         if not base_path or base_path == "/":
             base_path = ""
 
-        for item in data.get("files", []):
-            is_folder = item.get("mimeType") == FOLDER_MIME_TYPE
-            item_path = f"{base_path}/{item['name']}"
+        entries = []
+        page_token: str | None = None
 
-            # Get etag for each file
-            etag = await self._get_etag(item["id"])
-
-            entry: dict[str, Any] = {
-                "name": item["name"],
-                "path": item_path,
-                "type": "folder" if is_folder else "file",
-                "size": int(item["size"]) if item.get("size") else None,
-                "modified": item.get("modifiedTime"),
-                "etag": etag,
+        while True:
+            params: dict[str, str] = {
+                "q": q,
+                "fields": "nextPageToken, files(id,name,mimeType,size,modifiedTime)",
+                "pageSize": "1000",
+                "orderBy": "name",
             }
-            entries.append(entry)
-        return entries
+            if folder_id != "root":
+                params["includeItemsFromAllDrives"] = "true"
+                params["supportsAllDrives"] = "true"
+            if page_token:
+                params["pageToken"] = page_token
 
-    async def _get_etag(self, file_id: str) -> str | None:
-        """Get the ETag for a file by ID using a HEAD-like request."""
-        url = f"{DRIVE_API_BASE}/files/{file_id}"
-        params = {"fields": "id", "supportsAllDrives": "true"}
-        response = await self._request("GET", url, params=params)
-        if response.status_code == 200:
-            return response.headers.get("etag")
-        return None
+            response = await self._request("GET", url, params=params)
+            if response.status_code != 200:
+                raise _map_error(response, f"list_files({path})")
+
+            data = response.json()
+
+            for item in data.get("files", []):
+                is_folder = item.get("mimeType") == FOLDER_MIME_TYPE
+                item_path = f"{base_path}/{item['name']}"
+
+                entry: dict[str, Any] = {
+                    "name": item["name"],
+                    "path": item_path,
+                    "type": "folder" if is_folder else "file",
+                    "size": int(item["size"]) if item.get("size") else None,
+                    "modified": item.get("modifiedTime"),
+                }
+                entries.append(entry)
+
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+
+        return entries
 
     async def read_file(self, path: str) -> dict[str, Any]:
         """Read file content and metadata."""
@@ -616,12 +635,27 @@ class DriveClient:
             pass
 
         parts_str = clean[1:] if clean.startswith("/") else clean
-        # Handle My Drive prefix
         parts = parts_str.split("/")
+
+        # Handle My Drive prefix
         if parts[0].lower() == "my drive":
             parts = parts[1:]
-        current_id = "root"
-        current_path = ""
+            current_id = "root"
+            current_path = "/My Drive"
+        # Handle Shared drives prefix
+        elif parts[0].lower() == "shared drives":
+            if len(parts) < 2:
+                raise DriveAPIError(
+                    "not_found",
+                    "Path '/Shared drives' requires a drive name (e.g., '/Shared drives/TeamName')",
+                )
+            drive_name = parts[1]
+            current_id = await self._resolve_shared_drive(drive_name)
+            current_path = f"/Shared drives/{drive_name}"
+            parts = parts[2:]
+        else:
+            current_id = "root"
+            current_path = ""
 
         for part in parts:
             current_path += "/" + part
