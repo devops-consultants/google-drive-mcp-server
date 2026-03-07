@@ -7,7 +7,7 @@ name = "google-drive-mcp-server"
 version = "0.1.0"
 description = "Google Drive MCP server with Streamable HTTP transport"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=2.0.0",

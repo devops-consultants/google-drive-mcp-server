@@ -162,4 +162,4 @@ The token must have the `https://www.googleapis.com/auth/drive` scope. The serve
 
 ## License
 
-MIT
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
