@@ -1,6 +1,5 @@
 """Tests for the Google Drive API client."""
 
-import json
 import pytest
 import httpx
 import respx
