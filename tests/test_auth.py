@@ -1,6 +1,5 @@
 """Tests for Bearer token authentication."""
 
-import pytest
 from google_drive_mcp_server.server import _extract_bearer_token
 
 

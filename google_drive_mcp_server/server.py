@@ -20,7 +20,13 @@ from google_drive_mcp_server.drive_client import (
 
 logger = logging.getLogger(__name__)
 
-MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", str(25 * 1024 * 1024)))
+_DEFAULT_MAX_FILE_SIZE = 25 * 1024 * 1024
+_max_file_size_env = os.environ.get("MAX_FILE_SIZE")
+try:
+    MAX_FILE_SIZE = int(_max_file_size_env) if _max_file_size_env is not None else _DEFAULT_MAX_FILE_SIZE
+except (TypeError, ValueError):
+    logger.warning("Invalid MAX_FILE_SIZE value %r; falling back to default %d bytes", _max_file_size_env, _DEFAULT_MAX_FILE_SIZE)
+    MAX_FILE_SIZE = _DEFAULT_MAX_FILE_SIZE
 
 
 def _extract_bearer_token(authorization: str | None) -> str | None:

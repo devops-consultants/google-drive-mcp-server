@@ -145,7 +145,14 @@ class PathCache:
     @staticmethod
     def _normalise(path: str) -> str:
         """Normalise path for cache key (lowercase for case-insensitive matching)."""
-        return path.strip().rstrip("/").lower()
+        path = path.strip()
+        if not path:
+            return "/"
+        if path != "/":
+            path = path.rstrip("/")
+        if not path.startswith("/"):
+            path = "/" + path
+        return path.lower()
 
 
 class DriveClient:
@@ -532,7 +539,8 @@ class DriveClient:
 
             # Build multipart body
             import json as json_mod
-            boundary = "boundary_fastmcp_upload"
+            import uuid
+            boundary = f"boundary_{uuid.uuid4().hex}"
             body = (
                 f"--{boundary}\r\n"
                 f"Content-Type: application/json; charset=UTF-8\r\n\r\n"

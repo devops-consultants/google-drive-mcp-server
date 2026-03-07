@@ -1,7 +1,6 @@
 """Tests for Google Drive file operation tools."""
 
 import base64
-import json
 import pytest
 import httpx
 import respx
@@ -9,16 +8,10 @@ import respx
 from google_drive_mcp_server.drive_client import (
     DriveClient,
     DriveAPIError,
-    PathCache,
     DRIVE_API_BASE,
     DRIVE_UPLOAD_BASE,
     FOLDER_MIME_TYPE,
 )
-
-
-def _files_response(files):
-    """Build a standard files.list response."""
-    return httpx.Response(200, json={"files": files})
 
 
 def _folder_entry(id, name, modified="2024-01-01T00:00:00Z"):
@@ -27,15 +20,6 @@ def _folder_entry(id, name, modified="2024-01-01T00:00:00Z"):
 
 def _file_entry(id, name, mime="text/plain", modified="2024-01-01T00:00:00Z"):
     return {"id": id, "name": name, "modifiedTime": modified, "mimeType": mime}
-
-
-# Helper to mock path resolution for a single-level path
-def _mock_resolve(path_name, file_id, is_folder=False):
-    """Returns a respx side_effect that resolves a single path component."""
-    mime = FOLDER_MIME_TYPE if is_folder else "text/plain"
-    return httpx.Response(200, json={
-        "files": [{"id": file_id, "name": path_name, "modifiedTime": "2024-01-01T00:00:00Z", "mimeType": mime}]
-    })
 
 
 @pytest.mark.asyncio
