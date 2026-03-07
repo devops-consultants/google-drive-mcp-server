@@ -8,7 +8,7 @@ Google Drive MCP server built with Python FastMCP, exposing file operations via 
 
 ## Tech Stack
 
-- **Python** with **FastMCP** (Streamable HTTP mode at `/mcp`)
+- **Python 3.12+** with **FastMCP** (Streamable HTTP mode at `/mcp`)
 - **httpx** (async) for Google Drive API v3 calls — not `google-api-python-client` (it's sync)
 - **uvicorn** as the ASGI server
 - **Docker** for deployment (image at `ghcr.io/devops-consultants/google-drive-mcp-server`)
@@ -18,6 +18,7 @@ Google Drive MCP server built with Python FastMCP, exposing file operations via 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
+pip install -e ".[dev]"  # test deps: pytest, pytest-asyncio, respx
 
 # Run server locally (default port 8080)
 python -m google_drive_mcp_server
@@ -48,7 +49,7 @@ docker build -t google-drive-mcp-server .
 ### MCP Tools
 
 All tools use path-based addressing:
-- `list_files(path)` — list folder contents
+- `list_files(path)` — list folder contents (name, path, type, size, modified — no etag, use `file_info` for that)
 - `read_file(path)` — read content + metadata (etag, mime_type, size, binary flag)
 - `write_file(path, content, etag?)` — create/update with optional conflict detection
 - `delete_file(path)` — permanent delete (not trash)
