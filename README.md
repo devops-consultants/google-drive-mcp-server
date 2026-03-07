@@ -35,8 +35,11 @@ docker compose up
 
 ### Local Development
 
+Requires Python 3.12+.
+
 ```bash
 pip install -r requirements.txt
+pip install -e ".[dev]"  # test dependencies
 python -m google_drive_mcp_server
 ```
 

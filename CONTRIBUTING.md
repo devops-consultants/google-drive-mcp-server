@@ -12,8 +12,7 @@
 2. **Install dependencies:**
 
    ```bash
-   pip install -r requirements.txt
-   pip install pytest pytest-asyncio respx
+   pip install -e ".[dev]"
    ```
 
 3. **Run the server locally:**
