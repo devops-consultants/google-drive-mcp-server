@@ -88,7 +88,7 @@ async def _get_client(ctx: Context) -> DriveClient:
     cache = await ctx.get_state("path_cache")
     if cache is None:
         cache = PathCache()
-        await ctx.set_state("path_cache", cache)
+        await ctx.set_state("path_cache", cache, serializable=False)
 
     return DriveClient(token=token, max_file_size=MAX_FILE_SIZE, path_cache=cache)
 
