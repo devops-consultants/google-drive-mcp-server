@@ -98,7 +98,7 @@ def _error_response(e: DriveAPIError) -> dict[str, Any]:
     return e.to_dict()
 
 
-@mcp.tool
+@mcp.tool(name="gdrive_list_files")
 async def list_files(
     path: str = "/", ctx: Context = None
 ) -> dict[str, Any] | list[dict[str, Any]]:
@@ -116,7 +116,7 @@ async def list_files(
         await client.close()
 
 
-@mcp.tool
+@mcp.tool(name="gdrive_read_file")
 async def read_file(path: str, ctx: Context = None) -> dict[str, Any]:
     """Read a file's content and metadata from Google Drive.
 
@@ -132,7 +132,7 @@ async def read_file(path: str, ctx: Context = None) -> dict[str, Any]:
         await client.close()
 
 
-@mcp.tool
+@mcp.tool(name="gdrive_write_file")
 async def write_file(
     path: str, content: str, etag: str | None = None, ctx: Context = None
 ) -> dict[str, Any]:
@@ -152,7 +152,7 @@ async def write_file(
         await client.close()
 
 
-@mcp.tool
+@mcp.tool(name="gdrive_delete_file")
 async def delete_file(path: str, ctx: Context = None) -> dict[str, Any]:
     """Delete a file from Google Drive.
 
@@ -168,7 +168,7 @@ async def delete_file(path: str, ctx: Context = None) -> dict[str, Any]:
         await client.close()
 
 
-@mcp.tool
+@mcp.tool(name="gdrive_file_info")
 async def file_info(path: str, ctx: Context = None) -> dict[str, Any]:
     """Get file or folder metadata without downloading content.
 
@@ -184,7 +184,7 @@ async def file_info(path: str, ctx: Context = None) -> dict[str, Any]:
         await client.close()
 
 
-@mcp.tool
+@mcp.tool(name="gdrive_create_folder")
 async def create_folder(path: str, ctx: Context = None) -> dict[str, Any]:
     """Create a folder in Google Drive (including intermediate folders).
 
@@ -200,7 +200,7 @@ async def create_folder(path: str, ctx: Context = None) -> dict[str, Any]:
         await client.close()
 
 
-@mcp.tool
+@mcp.tool(name="gdrive_move_file")
 async def move_file(
     source: str, destination: str, ctx: Context = None
 ) -> dict[str, Any]:
