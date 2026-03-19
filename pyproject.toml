@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "google-drive-mcp-server"
-version = "0.1.3"
+version = "0.1.4"
 description = "Google Drive MCP server with Streamable HTTP transport"
 readme = "README.md"
 license = {text = "Apache-2.0"}

@@ -325,9 +325,8 @@ class DriveClient:
                 "orderBy": "modifiedTime desc",
             }
 
-            if parent_id != "root":
-                params["includeItemsFromAllDrives"] = "true"
-                params["supportsAllDrives"] = "true"
+            params["includeItemsFromAllDrives"] = "true"
+            params["supportsAllDrives"] = "true"
 
             if page_token:
                 params["pageToken"] = page_token
@@ -373,9 +372,8 @@ class DriveClient:
                 "pageSize": "1000",
                 "orderBy": "name",
             }
-            if folder_id != "root":
-                params["includeItemsFromAllDrives"] = "true"
-                params["supportsAllDrives"] = "true"
+            params["includeItemsFromAllDrives"] = "true"
+            params["supportsAllDrives"] = "true"
             if page_token:
                 params["pageToken"] = page_token
 
@@ -577,7 +575,7 @@ class DriveClient:
         try:
             return await self._resolve_path(path)
         except DriveAPIError:
-            # Create the folder
+            logger.warning("Auto-creating parent folder: %s", path)
             result = await self.create_folder(path)
             return await self._resolve_path(path)
 

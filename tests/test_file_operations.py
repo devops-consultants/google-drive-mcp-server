@@ -302,6 +302,80 @@ class TestWriteFile:
             await client.close()
 
 
+    @respx.mock
+    async def test_write_existing_path_resolves_and_updates(self):
+        """write_file to an existing path resolves and updates without creating duplicate folders."""
+        call_count = 0
+        def get_side_effect(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # Resolve /Docs folder
+                return httpx.Response(200, json={
+                    "files": [_folder_entry("docs-folder", "Docs")]
+                })
+            elif call_count == 2:
+                # Resolve /Docs/readme.md file
+                return httpx.Response(200, json={
+                    "files": [_file_entry("file-1", "readme.md")]
+                })
+            return httpx.Response(200, json={"files": []})
+        respx.get(url__startswith=f"{DRIVE_API_BASE}/files").mock(side_effect=get_side_effect)
+        route = respx.patch(url__startswith=f"{DRIVE_UPLOAD_BASE}/files/file-1").mock(
+            return_value=httpx.Response(200, json={
+                "id": "file-1", "name": "readme.md", "size": "7"
+            }, headers={"etag": "\"updated-etag\""})
+        )
+        # No POST should happen (no folder creation)
+        post_route = respx.post(url__startswith=f"{DRIVE_API_BASE}/files").mock(
+            return_value=httpx.Response(201, json={"id": "should-not-be-called"})
+        )
+        client = DriveClient(token="test-token")
+        try:
+            result = await client.write_file("/Docs/readme.md", "updated")
+            assert result["path"] == "/Docs/readme.md"
+            assert result["etag"] == "\"updated-etag\""
+            assert route.call_count == 1
+            assert post_route.call_count == 0  # No folder creation
+        finally:
+            await client.close()
+
+    @respx.mock
+    async def test_write_nonexistent_path_auto_creates_parent_and_logs(self, caplog):
+        """write_file to a non-existent path auto-creates parent folder and logs a warning."""
+        import logging
+
+        # All resolve attempts fail (nothing exists)
+        respx.get(url__startswith=f"{DRIVE_API_BASE}/files").mock(
+            return_value=httpx.Response(200, json={"files": []})
+        )
+        # Folder creation
+        folder_post_call = [0]
+        def post_side_effect(request):
+            folder_post_call[0] += 1
+            url_str = str(request.url)
+            if "upload" in url_str:
+                # File upload
+                return httpx.Response(201, json={
+                    "id": "new-file-id", "name": "notes.md", "size": "5"
+                }, headers={"etag": "\"new-etag\""})
+            # Folder creation
+            return httpx.Response(201, json={"id": f"folder-{folder_post_call[0]}", "name": "NewFolder"})
+
+        respx.post(url__startswith="https://www.googleapis.com").mock(side_effect=post_side_effect)
+
+        client = DriveClient(token="test-token")
+        try:
+            with caplog.at_level(logging.WARNING, logger="google_drive_mcp_server.drive_client"):
+                result = await client.write_file("/NewFolder/notes.md", "hello")
+            assert result["path"] == "/NewFolder/notes.md"
+            assert result["etag"] == "\"new-etag\""
+            # Check that auto-creation warning was logged
+            assert any("Auto-creating parent folder" in record.message for record in caplog.records)
+        finally:
+            await client.close()
+
+
 @pytest.mark.asyncio
 class TestDeleteFile:
     @respx.mock
