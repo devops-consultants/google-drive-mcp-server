@@ -138,6 +138,12 @@ async def write_file(
 ) -> dict[str, Any]:
     """Create or update a file in Google Drive.
 
+    WARNING: If the parent folder does not exist, it will be auto-created.
+    Google Drive allows duplicate folder names, so writing to a path when
+    resolution fails may silently create a duplicate folder. To avoid this,
+    verify paths with gdrive_read_file or gdrive_list_files before writing
+    to paths that should already exist.
+
     Args:
         path: Path where the file should be written
         content: File content (text)

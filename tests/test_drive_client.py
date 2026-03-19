@@ -310,6 +310,52 @@ class TestPathResolution:
             await client.close()
 
     @respx.mock
+    async def test_resolve_child_sends_supports_all_drives_for_root(self):
+        """_resolve_child() sends supportsAllDrives=true when parent_id == 'root'."""
+        route = respx.get(url__startswith=f"{DRIVE_API_BASE}/files").mock(
+            return_value=httpx.Response(200, json={
+                "files": [{"id": "folder-1", "name": "SocialMedia", "modifiedTime": "2024-01-01T00:00:00Z", "mimeType": FOLDER_MIME_TYPE}]
+            })
+        )
+        client = DriveClient(token="test-token")
+        try:
+            result = await client._resolve_path("/SocialMedia")
+            assert result == "folder-1"
+            # Verify the API request included supportsAllDrives params
+            request_url = str(route.calls[0].request.url)
+            assert "supportsAllDrives=true" in request_url
+            assert "includeItemsFromAllDrives=true" in request_url
+        finally:
+            await client.close()
+
+    @respx.mock
+    async def test_resolve_child_sends_supports_all_drives_for_folder_id(self):
+        """_resolve_child() sends supportsAllDrives=true when parent_id is a folder ID."""
+        call_count = 0
+        def side_effect(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(200, json={
+                    "files": [{"id": "folder-1", "name": "Documents", "modifiedTime": "2024-01-01T00:00:00Z", "mimeType": FOLDER_MIME_TYPE}]
+                })
+            else:
+                return httpx.Response(200, json={
+                    "files": [{"id": "file-1", "name": "report.md", "modifiedTime": "2024-01-01T00:00:00Z", "mimeType": "text/markdown"}]
+                })
+        route = respx.get(url__startswith=f"{DRIVE_API_BASE}/files").mock(side_effect=side_effect)
+        client = DriveClient(token="test-token")
+        try:
+            result = await client._resolve_path("/Documents/report.md")
+            assert result == "file-1"
+            # Second call is resolving child within folder-1 (non-root)
+            request_url = str(route.calls[1].request.url)
+            assert "supportsAllDrives=true" in request_url
+            assert "includeItemsFromAllDrives=true" in request_url
+        finally:
+            await client.close()
+
+    @respx.mock
     async def test_cache_no_collision_between_drives(self):
         """Cache keys include drive prefix so My Drive and Shared drives don't collide."""
         call_count = [0]
