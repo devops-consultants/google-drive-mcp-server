@@ -574,9 +574,11 @@ class DriveClient:
         """Ensure a folder exists, creating intermediates as needed. Returns folder ID."""
         try:
             return await self._resolve_path(path)
-        except DriveAPIError:
+        except DriveAPIError as e:
+            if e.error != "not_found":
+                raise
             logger.warning("Auto-creating parent folder: %s", path)
-            result = await self.create_folder(path)
+            await self.create_folder(path)
             return await self._resolve_path(path)
 
     async def delete_file(self, path: str) -> dict[str, bool]:
